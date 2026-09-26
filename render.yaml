@@ -1,0 +1,29 @@
+# Render Blueprint — backend (server/) เท่านั้น; หน้าเว็บ (client/) อยู่บน Vercel
+# New → Blueprint → เลือก repo นี้ แล้ว Render จะสร้าง service ตามไฟล์นี้
+services:
+  - type: web
+    name: farm-game-server
+    runtime: node
+    rootDir: server
+    plan: free
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # รหัสสำหรับอัปโหลดที่ /admin — Render สุ่มให้ ดูค่าได้ในแท็บ Environment
+      - key: ADMIN_TOKEN
+        generateValue: true
+      # ไม่ตั้ง = ไม่ต่อห้อง YelloTalk (เกมเล่นได้ปกติ) — จะต่อต้องให้ bot backend อยู่บน URL สาธารณะ
+      - key: BRIDGE_URL
+        sync: false
+      - key: BRIDGE_BOT_ID
+        sync: false
+      # true = โชว์แชทจากห้อง YelloTalk ในแชทเกม (ไม่ตั้ง/false = ไม่โชว์)
+      - key: BRIDGE_SHOW_ROOM_CHAT
+        value: "false"
+    # plan free ไม่มี disk: data/farm.db (คะแนนสูงสุด) กับไฟล์ที่อัปโหลดหายทุกครั้งที่ restart/deploy
+    # อยากเก็บถาวร → เปลี่ยนเป็น plan: starter แล้วเปิดสองบรรทัดนี้
+    # disk: { name: farm-data, mountPath: /var/data, sizeGB: 1 }
+    # (และเพิ่ม envVars: - key: FARM_DATA_DIR / value: /var/data)

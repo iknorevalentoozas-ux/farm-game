@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Farm Game — จัดการ Asset</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #12200f; color: #eef6ea; margin: 0; padding: 16px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  p.hint { color: #a9c2a3; font-size: 13px; margin: 0 0 16px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+  .card { background: #1c3018; border: 1px solid rgba(255,255,255,.1); border-radius: 12px; padding: 12px; }
+  .card b { display: block; font-size: 13px; }
+  .card small { color: #a9c2a3; font-size: 11px; }
+  .preview { height: 72px; margin: 8px 0; display: grid; place-items: center; background: #0f1a0d; border-radius: 8px; }
+  .preview img { max-width: 64px; max-height: 64px; image-rendering: pixelated; }
+  .preview span { color: #6f8a69; font-size: 11px; }
+  input[type=file] { width: 100%; font-size: 11px; }
+  button { margin-top: 6px; width: 100%; padding: 7px; border: 0; border-radius: 8px; background: #d98f3a; color: #1b1204; font-weight: 700; cursor: pointer; }
+  .custom { margin: 16px 0; display: flex; gap: 8px; flex-wrap: wrap; }
+  .custom input[type=text] { padding: 7px; border-radius: 8px; border: 1px solid #3c6b3f; background: #0f1a0d; color: #fff; }
+  .msg { font-size: 12px; margin-top: 4px; min-height: 14px; }
+</style>
+</head>
+<body>
+<h1>🌾 จัดการ Asset</h1>
+<p class="hint">อัปโหลดโมเดล 3D (.glb ≤ 10MB) แทนของในเกมทีละชิ้น — key ที่ไม่มีไฟล์ เกมใช้โมเดลที่สร้างจากโค้ด รีโหลดหน้าเกมเพื่อเห็นของใหม่ (หน่วย 1 = 1 ช่อง, แกน Y ขึ้น)</p>
+<div class="grid" id="grid"></div>
+<div class="custom">
+  <input type="text" id="customKey" placeholder="key ใหม่ (a-z 0-9 _ -)" />
+  <button style="width:auto;margin:0" id="addCustom">เพิ่มช่อง</button>
+</div>
+<script>
+// ต้องตรงกับ key ที่ client/src/render/World.ts เรียก use(key, …) — ไม่มีไฟล์ = ใช้โมเดลที่เกมสร้างจากโค้ด
+const CROPS = [
+  ['carrot', 'แครอท'], ['lettuce', 'ผักกาด'], ['tomato', 'มะเขือเทศ'],
+  ['corn', 'ข้าวโพด'], ['strawberry', 'สตรอว์เบอร์รี่'], ['pumpkin', 'ฟักทอง'],
+];
+const KEYS = [
+  ['tree-grass', 'ต้นไม้ ฟาร์มเริ่มต้น'], ['tree-desert', 'กระบองเพชร ทะเลทราย'], ['tree-snow', 'ต้นสน หิมะ'],
+  ['fence', 'รั้ว (1 ช่อง)'], ['water', 'บ่อน้ำ (1 ช่อง)'],
+  ['counter', 'โต๊ะ'], ['rack', 'ชั้นเครื่องมือ'], ['pack', 'จุดแพ็ก'], ['seeds', 'กล่องเมล็ด'], ['trash', 'ถังขยะ'],
+  ['shop', 'ร้านค้า'], ['truck', 'รถส่งออก (คร่อม 2 ช่อง)'],
+  ['tree-spring', 'ต้นซากุระ'], ['duck', 'เป็ดยางในบ่อ'],
+  ['item-tool-hoe', 'จอบ'], ['item-tool-can', 'บัวรดน้ำ'], ['item-tool-sickle', 'เคียว'],
+  ['item-tool-sprinkler', 'สปริงเกอร์'], ['item-tool-scarecrow', 'หุ่นไล่กา'], ['item-feed-grain', 'อาหารสัตว์'],
+  ['item-crop-egg', 'ไข่ไก่ (ถือ)'], ['item-box-egg', 'กล่องไข่'], ['item-crop-milk', 'นมวัว (ถือ)'], ['item-box-milk', 'กล่องนม'],
+  ...CROPS.flatMap(([id, name]) => [
+    [`crop-${id}-0`, `${name} บนแปลง ระยะ 0`], [`crop-${id}-1`, `${name} ระยะ 1`],
+    [`crop-${id}-2`, `${name} ระยะ 2`], [`crop-${id}-3`, `${name} พร้อมเก็บ`],
+    [`item-crop-${id}`, `${name} (ถือ)`], [`item-box-${id}`, `กล่อง${name}`], [`item-seed-${id}`, `ถุงเมล็ด${name}`],
+  ]),
+];
+const grid = document.getElementById('grid');
+let current = {};
+
+function card(key, label) {
+  const el = document.createElement('div');
+  el.className = 'card';
+  el.innerHTML = `<b>${key}</b><small>${label || ''}</small><div class="preview"></div>
+    <input type="file" accept=".glb,image/*" /><button>อัปโหลด</button><div class="msg"></div>`;
+  const prev = el.querySelector('.preview');
+  const msg = el.querySelector('.msg');
+  const show = () => {
+    prev.innerHTML = !current[key] ? '<span>ใช้โมเดลในเกม</span>' : /\.glb/i.test(current[key]) ? '<span>🧊 โมเดลที่อัปโหลด</span>' : `<img src="${current[key]}" />`;
+  };
+  show();
+  el.querySelector('button').onclick = async () => {
+    const f = el.querySelector('input').files[0];
+    if (!f) { msg.textContent = 'เลือกไฟล์ก่อน'; return; }
+    const fd = new FormData();
+    fd.append('file', f);
+    // server ตั้ง ADMIN_TOKEN ไว้ → ถามครั้งเดียวแล้วจำไว้ในเบราว์เซอร์นี้ (ผิดก็ถามใหม่)
+    const send = () => fetch('/api/assets/' + encodeURIComponent(key), {
+      method: 'POST', body: fd, headers: { 'x-admin-token': localStorage.getItem('farmAdminToken') || '' },
+    });
+    let r = await send();
+    if (r.status === 401) {
+      const t = prompt('ADMIN_TOKEN');
+      if (!t) { msg.textContent = 'ต้องใส่ ADMIN_TOKEN'; return; }
+      localStorage.setItem('farmAdminToken', t);
+      r = await send();
+    }
+    const j = await r.json();
+    if (j.ok) { current[key] = j.url; show(); msg.textContent = 'อัปโหลดแล้ว ✓'; }
+    else msg.textContent = j.error || 'ผิดพลาด';
+  };
+  grid.appendChild(el);
+}
+
+fetch('/api/assets').then(r => r.json()).then(d => {
+  current = d.assets || {};
+  KEYS.forEach(([k, l]) => card(k, l));
+  Object.keys(current).filter(k => !KEYS.some(x => x[0] === k)).forEach(k => card(k, 'กำหนดเอง'));
+});
+document.getElementById('addCustom').onclick = () => {
+  const k = document.getElementById('customKey').value.trim();
+  if (/^[a-zA-Z0-9_-]{1,64}$/.test(k)) { card(k, 'กำหนดเอง'); document.getElementById('customKey').value = ''; }
+};
+</script>
+</body>
+</html>

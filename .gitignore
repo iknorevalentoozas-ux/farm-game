@@ -1,0 +1,14 @@
+node_modules/
+dist/
+*.log
+.env
+.env.local
+
+# SQLite ข้อมูลผู้เล่น (per-machine, ไม่ commit)
+server/data/
+server/public/assets/uploads/
+
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
